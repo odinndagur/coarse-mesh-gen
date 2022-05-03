@@ -40,7 +40,7 @@ public class AudioPlayer : MonoBehaviour
             m_ToggleChange = false;
         }
 
-        spectrum = new float[64];
+        spectrum = new float[256];
         AudioListener.GetSpectrumData(spectrum, 0, FFTWindow.Rectangular);
 
         // private float[] samps;            //Audio samples of clip

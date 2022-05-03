@@ -23,6 +23,7 @@ public class CoarseMeshGen : MonoBehaviour
     float lastT = -0.0f;
     ComputeBuffer positionsBuffer;
     ComputeBuffer positionsBuffer2;
+    ComputeBuffer outputPositions;
     ComputeBuffer fftBuffer;
     Vector3[] buff;
     Vector3[] buff2;
@@ -36,16 +37,22 @@ public class CoarseMeshGen : MonoBehaviour
     // public enum type {sine,slide};
     public bool sine = false;
 
+    // public Shader shader;
+    // Material material;
+
 
 
 
     [ContextMenu("Start")]
     void Start(){
+        // material = new Material(shader);
         loadMeshAndGenerateBufferArrays();
         positionsBuffer.SetData(buff);
         positionsBuffer2.SetData(buff2);
         cs.SetBuffer(0, "_Positions", positionsBuffer);
         cs.SetBuffer(0, "_Positions2", positionsBuffer2);
+        cs.SetBuffer(0, "_OutputPositions", outputPositions);
+        // material.SetBuffer(0,"meshVertices", outputPositions);
 
 
         GenerateMesh();
@@ -79,6 +86,7 @@ public class CoarseMeshGen : MonoBehaviour
         // loadData();
 		positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        outputPositions = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         fftBuffer = new ComputeBuffer(256, sizeof(float));
 
 	}
@@ -88,6 +96,8 @@ public class CoarseMeshGen : MonoBehaviour
         positionsBuffer = null;
         positionsBuffer2.Release();
         positionsBuffer2 = null;
+        outputPositions.Release();
+        outputPositions = null;
         fftBuffer.Release();
         fftBuffer = null;
 	}
@@ -100,20 +110,24 @@ public class CoarseMeshGen : MonoBehaviour
             // cs.SetBuffer(0,heightsId,heightsBuffer);
         positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        outputPositions = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2.SetData(buff2);
         positionsBuffer.SetData(buff);
         cs.SetBuffer(0, "_Positions", positionsBuffer);
         cs.SetBuffer(0, "_Positions2", positionsBuffer2);
+        cs.SetBuffer(0, "_OutputPositions", outputPositions);
     }
     [ContextMenu("Update on gpu")]
     void updateOnGPU(){
-        if(positionsBuffer == null || positionsBuffer2 == null){
-            bufferSetup();
-        }
-        positionsBuffer2.SetData(buff2);
-        positionsBuffer.SetData(buff);
+        // if(positionsBuffer == null || positionsBuffer2 == null){
+        //     bufferSetup();
+        // }
+        // positionsBuffer2.SetData(buff2);
+        // positionsBuffer.SetData(buff);
         cs.SetBuffer(0, "_Positions", positionsBuffer);
         cs.SetBuffer(0, "_Positions2", positionsBuffer2);
+        cs.SetBuffer(0, "_OutputPositions", outputPositions);
+        // material.SetBuffer (0, "meshVertices", outputPositions);
 
         fftBuffer.SetData(audioPlayer.spectrum);
         cs.SetBuffer(0, "_fftBuffer", fftBuffer);
@@ -124,7 +138,7 @@ public class CoarseMeshGen : MonoBehaviour
         cs.SetFloat("_t",t);
 		cs.Dispatch(kernelHandle, groups * groups, 1, 1);
         Vector3[] data = new Vector3[(xSize+1) * (zSize+1)];
-        positionsBuffer.GetData(data);
+        outputPositions.GetData(data);
         // Debug.Log(data[62000]);
         mesh.vertices = data;
         mesh.RecalculateNormals ();

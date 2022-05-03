@@ -3,11 +3,16 @@
 
 RWStructuredBuffer<float3> _Positions;
 RWStructuredBuffer<float3> _Positions2;
+RWStructuredBuffer<float3> _OutputPositions;
 RWStructuredBuffer<float> _fftBuffer;
 
 float _t;
 
 // y=amplitude×sin(frequency×time+phase)+bias.
+
+float invLerp(float from, float to, float value){
+  return (value - from) / (to - from);
+}
 
 [numthreads(64,1,1)]
 void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
@@ -23,15 +28,27 @@ void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
     // _t = sin(_Time.y * speed);
     // _t = sin(_t * 0.1 + affected_t);
 
-    int bin = (int)lerp(0,255,affected_t);
-    bin = (int)(bin + _t) % 255;
-    _t = _t * affected_t * (log10(_fftBuffer[bin]));
-    // _t = saturate(_t) * 2 - 1;
+    uint bin = (uint)lerp(0,255,affected_t);
+    bin = (uint)(bin + _t) % 255;
+    float audio = log10(_fftBuffer[bin]);
 
-    float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
+    float newheight = _t * pos1.y + (1 - _t) * pos2.y;
+    float affector = saturate(invLerp(newheight, 200.0f, 900.0f));
+    // _t = affector;
+
+    audio *= _t;
+    _t = audio * affector * 40;
+
+    // _t *= affector;
+    // _t = _t * affected_t * (log10(_fftBuffer[bin]));
+    // _t = saturate(_t) * 2 - 1;
+    newheight += _t;
+    // float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
+    float3 newPos = float3(pos1.x,newheight,pos1.z);
     // newPos = _Positions[id];
     // newPos.y = affected_t;
-    _Positions[id] = newPos;
+    // _Positions[id] = newPos;
+    _OutputPositions[id] = newPos;
 }
 
 
