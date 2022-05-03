@@ -1,0 +1,15 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+RWStructuredBuffer<float3> _Positions;
+RWStructuredBuffer<float3> _Positions2;
+
+float _t;
+
+[numthreads(64,1,1)]
+void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
+    float3 pos1 = _Positions[id];
+    float3 pos2 = _Positions2[id];
+    float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
+    _Positions[id] = newPos;
+}
