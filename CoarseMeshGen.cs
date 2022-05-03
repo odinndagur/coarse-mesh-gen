@@ -32,9 +32,12 @@ public class CoarseMeshGen : MonoBehaviour
 
     [ContextMenu("Start")]
     void Start(){
-        // loadData();
-        // generateBuffersLarge();
-        loadMeshAndGenerateBuffers();
+        loadMeshAndGenerateBufferArrays();
+        positionsBuffer.SetData(buff);
+        positionsBuffer2.SetData(buff2);
+        cs.SetBuffer(0, "_Positions", positionsBuffer);
+        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
+
         GenerateMesh();
         UpdateMesh();
         updateOnGPU();
@@ -63,10 +66,6 @@ public class CoarseMeshGen : MonoBehaviour
         // loadData();
 		positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
-        positionsBuffer2.SetData(buff2);
-        positionsBuffer.SetData(buff);
-        cs.SetBuffer(0, "_Positions", positionsBuffer);
-        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
 	}
 
     void OnDisable () {
@@ -94,6 +93,10 @@ public class CoarseMeshGen : MonoBehaviour
         if(positionsBuffer == null || positionsBuffer2 == null){
             bufferSetup();
         }
+        positionsBuffer2.SetData(buff2);
+        positionsBuffer.SetData(buff);
+        cs.SetBuffer(0, "_Positions", positionsBuffer);
+        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
         int groups = Mathf.CeilToInt(zSize / 8f);
         cs.SetInt("_Groupsize",groups);
         int kernelHandle = cs.FindKernel("CSMain");
@@ -105,28 +108,9 @@ public class CoarseMeshGen : MonoBehaviour
         mesh.vertices = data;
         mesh.RecalculateNormals ();
     }
-
-    [ContextMenu("Generate buffers")]
-    void generateBuffers(){
-        int buffSize = (xSize + 1) * (zSize + 1);
-        buff = new Vector3[buffSize];
-        buff2 = new Vector3[buffSize];
-        
-        for (int i = 0, z =0; z<= zSize; z++)
-        {
-            for (int x = 0; x<=xSize; x++)
-            {
-                float y = get_height(xoff + x, zoff + z);
-                buff[i] = new Vector3(x, y, z);
-                y = get_height(xoff + xSize + x, zoff + zSize + z);
-                buff2[i] = new Vector3(x, y, z);
-                i++;
-            }
-        }
-    }
     
     [ContextMenu("Load custom mesh data and generate buffers")]
-    void loadMeshAndGenerateBuffers(){
+    void loadMeshAndGenerateBufferArrays(){
         int buffSize = (xSize + 1) * (zSize + 1);
         buff = new Vector3[buffSize];
         buff2 = new Vector3[buffSize];
@@ -181,18 +165,21 @@ public class CoarseMeshGen : MonoBehaviour
     void CreateShape()
     {
         vertices = new Vector3[(xSize + 1) * (zSize + 1)];
-
-        for (int i = 0, z =0; z<= zSize; z++)
-        {
-            for (int x = 0; x<=xSize; x++)
-            {
-                // float y = get_height(xoff + x, zoff + z);
-                // float y = get_height(x, z);
-                float y = 0.0f;
-                vertices[i] = new Vector3(x, y, z);
-                i++;
-            }
+        for(int i = 0; i < vertices.Length; i++){
+            vertices[i] = buff[i];
         }
+
+        // for (int i = 0, z =0; z<= zSize; z++)
+        // {
+        //     for (int x = 0; x<=xSize; x++)
+        //     {
+        //         // float y = get_height(xoff + x, zoff + z);
+        //         // float y = get_height(x, z);
+        //         float y = buff[i];
+        //         vertices[i] = new Vector3(x, y, z);
+        //         i++;
+        //     }
+        // }
 
         triangles = new int[xSize * zSize * 6];
 
