@@ -23,12 +23,21 @@ public class CoarseMeshGen : MonoBehaviour
     float lastT = -0.0f;
     ComputeBuffer positionsBuffer;
     ComputeBuffer positionsBuffer2;
+    ComputeBuffer fftBuffer;
     Vector3[] buff;
     Vector3[] buff2;
     public Material mat;
     [SerializeField]
     ComputeShader cs;
     static readonly int tId = Shader.PropertyToID("_t");
+
+    public AudioPlayer audioPlayer;
+
+    // public enum type {sine,slide};
+    public bool sine = false;
+
+
+
 
     [ContextMenu("Start")]
     void Start(){
@@ -38,17 +47,21 @@ public class CoarseMeshGen : MonoBehaviour
         cs.SetBuffer(0, "_Positions", positionsBuffer);
         cs.SetBuffer(0, "_Positions2", positionsBuffer2);
 
+
         GenerateMesh();
         UpdateMesh();
         updateOnGPU();
     }
     void Update(){
-        if(t != lastT){
+        if(t != lastT || audioPlayer.GetComponent<AudioSource>().isPlaying){
             updateOnGPU();
-            Debug.Log("gpu");
+            // Debug.Log("gpu");
             lastT = t;
         }
-                t = (Mathf.Sin(Time.time * morphSpeed) + 1)/2;
+        if(sine){
+        t = (Mathf.Sin(Time.time * morphSpeed) + 1)/2;
+        }
+        // updateOnGPU();
     }
 
 
@@ -66,6 +79,8 @@ public class CoarseMeshGen : MonoBehaviour
         // loadData();
 		positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        fftBuffer = new ComputeBuffer(256, sizeof(float));
+
 	}
 
     void OnDisable () {
@@ -73,6 +88,8 @@ public class CoarseMeshGen : MonoBehaviour
         positionsBuffer = null;
         positionsBuffer2.Release();
         positionsBuffer2 = null;
+        fftBuffer.Release();
+        fftBuffer = null;
 	}
     
     [ContextMenu("Buffer Setup")]
@@ -97,6 +114,10 @@ public class CoarseMeshGen : MonoBehaviour
         positionsBuffer.SetData(buff);
         cs.SetBuffer(0, "_Positions", positionsBuffer);
         cs.SetBuffer(0, "_Positions2", positionsBuffer2);
+
+        fftBuffer.SetData(audioPlayer.spectrum);
+        cs.SetBuffer(0, "_fftBuffer", fftBuffer);
+
         int groups = Mathf.CeilToInt(zSize / 8f);
         cs.SetInt("_Groupsize",groups);
         int kernelHandle = cs.FindKernel("CSMain");
@@ -104,7 +125,7 @@ public class CoarseMeshGen : MonoBehaviour
 		cs.Dispatch(kernelHandle, groups * groups, 1, 1);
         Vector3[] data = new Vector3[(xSize+1) * (zSize+1)];
         positionsBuffer.GetData(data);
-        Debug.Log(data[62000]);
+        // Debug.Log(data[62000]);
         mesh.vertices = data;
         mesh.RecalculateNormals ();
     }

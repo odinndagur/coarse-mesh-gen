@@ -3,10 +3,9 @@
 
 RWStructuredBuffer<float3> _Positions;
 RWStructuredBuffer<float3> _Positions2;
+RWStructuredBuffer<float> _fftBuffer;
 
 float _t;
-float _Time;
-float speed = 0.1;
 
 // y=amplitude×sin(frequency×time+phase)+bias.
 
@@ -14,7 +13,33 @@ float speed = 0.1;
 void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
     float3 pos1 = _Positions[id];
     float3 pos2 = _Positions2[id];
-    _t = sin(_Time.y * speed);
+
+    // float2 point = float2(pos1.x,pos1.z);
+    // float xDist = pow(point.x, 2500.0f);
+    // float zDist = pow(point.y, 2500.0f);
+
+    float distFromCenter = distance(float3(pos1.x,0.0f,pos1.z),float3(2500.0f,0.0f,2500.0f));
+    float affected_t = abs(distFromCenter - 2500) / 5000;
+    // _t = sin(_Time.y * speed);
+    // _t = sin(_t * 0.1 + affected_t);
+
+    int bin = (int)lerp(0,255,affected_t);
+    bin = (int)(bin + _t) % 255;
+    _t = _t * affected_t * (log10(_fftBuffer[bin]));
+    // _t = saturate(_t) * 2 - 1;
+
     float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
+    // newPos = _Positions[id];
+    // newPos.y = affected_t;
     _Positions[id] = newPos;
 }
+
+
+// fixed2 pixelPoint = fixed2(i.uv.x, i.uv.y);
+// float xDist = pow(pixelPoint.x - _GradientPivot.x, 2);
+// float yDist = pow(pixelPoint.y - _GradientPivot.y, 2);
+// float dist = sqrt(xDist + yDist) / _RadiusMultiplier;
+// dist = clamp(dist, 0, 1);
+// fixed4 col = lerp(_ColorFrom, _ColorTo, dist);
+// col.rgb += getNoise(i.uv);
+// return col;
