@@ -15,13 +15,13 @@ public class CoarseMeshGen : MonoBehaviour
     int[] triangles;
     public int xSize = 250;
     public int zSize = 250;
+    public float morphSpeed = 1.0f;
     public int xoff = 0;
     public int zoff = 0;
 
     [Range(0.0f,1.0f)]
     public float t = 0.0f;
     float lastT = -0.0f;
-    // ComputeBuffer heightsBuffer;
     ComputeBuffer positionsBuffer;
     ComputeBuffer positionsBuffer2;
     Vector3[] buff;
@@ -29,17 +29,39 @@ public class CoarseMeshGen : MonoBehaviour
     public Material mat;
     [SerializeField]
     ComputeShader cs;
-    static readonly int
-		positionsId = Shader.PropertyToID("_Positions"),
-        // heightsId = Shader.PropertyToID("_Heights"),
-		tId = Shader.PropertyToID("_t");
+    static readonly int tId = Shader.PropertyToID("_t");
+
+    [ContextMenu("Start")]
+    void Start(){
+        // loadData();
+        // generateBuffersLarge();
+        loadMeshAndGenerateBuffers();
+        GenerateMesh();
+        UpdateMesh();
+        updateOnGPU();
+    }
+    void Update(){
+        // t = GameObject.Find("LerpController").GetComponent<LerpController>().t;
+        // GenerateMesh();
+        // UpdateMesh();
+        if(t != lastT){
+            updateOnGPU();
+            Debug.Log("gpu");
+            lastT = t;
+        }
+                t = (Mathf.Sin(Time.time * morphSpeed) + 1)/2;
+
+    }
+
+
 
     //  #if UNITY_EDITOR
     // instead of @script ExecuteInEditMode()
     [ContextMenu("Generate mesh")]
     void GenerateMesh() 
     {
-        loadData();
+        // loadData();
+        // loadDataWithSkips();
         mesh = new Mesh();
         GetComponent<MeshFilter>().mesh = mesh;
         CreateShape();
@@ -59,10 +81,11 @@ public class CoarseMeshGen : MonoBehaviour
             }
         }
         catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
         }
     }
 
-        void loadData(){
+    void loadData(){
         width = 25000;
         height = 24999;
         bigArr = new float[width*height];
@@ -77,13 +100,60 @@ public class CoarseMeshGen : MonoBehaviour
             }
         }
         catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
         }
     }
+    [ContextMenu("Load data with skips")]
+    void loadDataWithSkips(){
+        int data_width = 25000;
+        int data_height = 24999;
+        width = 6000;
+        height = 6000;
+        bigArr = new float[width*height];
+        try
+        {
+            using (var fileStream = System.IO.File.OpenRead("/Users/odinndagur/Code/Github/binary_writer_py/test_heights57.dat"))
+            using (var reader = new System.IO.BinaryReader(fileStream))
+            {
+
+                //testing the skips
+                for(int j = 0; j < zoff; j++){
+                    for(int jj = 0; jj < data_width; jj++){
+                        reader.ReadSingle(); //throw away entire lines until we get to correct zoff line
+                    }
+                    for(int jj = 0; jj < xoff; jj++){
+                        reader.ReadSingle(); //throw away x values until we get to correct one
+                    }
+                }
+                for(int y = zoff, i = 0; y < height + zoff; y++){
+                    for(int x = xoff; x < width + xoff; x++){
+                        bigArr[i++] = reader.ReadSingle();
+                    }
+                    for(int j = xoff; j < data_width - width; j++){
+                        reader.ReadSingle(); //throw away rest of the line and the beginning of next line
+                    }
+                }
+
+
+                // for(int i = 0; i < width * height; i++){
+                //     bigArr[i] = reader.ReadSingle();
+                // }
+            }
+        }
+        catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
+        }
+    }
+
     // #endif
     void OnEnable () {
-        loadData();
+        // loadData();
 		positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
         positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        positionsBuffer2.SetData(buff2);
+        positionsBuffer.SetData(buff);
+        cs.SetBuffer(0, "_Positions", positionsBuffer);
+        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
 	}
 
     void OnDisable () {
@@ -92,50 +162,31 @@ public class CoarseMeshGen : MonoBehaviour
         positionsBuffer2.Release();
         positionsBuffer2 = null;
 	}
-    void Start(){
-        generateBuffersLarge();
-        GenerateMesh();
-        UpdateMesh();
+    
+    [ContextMenu("Buffer Setup")]
+    void bufferSetup(){
+                    // heightsBuffer = new ComputeBuffer(width*height,sizeof(float));
+            // loadData();
+            // heightsBuffer.SetData(bigArr);
+            // cs.SetBuffer(0,heightsId,heightsBuffer);
+        positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
+        positionsBuffer2.SetData(buff2);
+        positionsBuffer.SetData(buff);
+        cs.SetBuffer(0, "_Positions", positionsBuffer);
+        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
     }
-
-    void Update(){
-        // t = GameObject.Find("LerpController").GetComponent<LerpController>().t;
-        // GenerateMesh();
-        // UpdateMesh();
-        if(t != lastT){
-            updateOnGPU();
-            Debug.Log("gpu");
-            lastT = t;
-        }
-        // if (Time.time >= nextTime){
-        //     nextTime = Time.time + changeRate;
-        //     change_shape();
-        // }
-        // updateOnGPU();
-    }
-
     [ContextMenu("Update on gpu")]
     void updateOnGPU(){
         if(positionsBuffer == null || positionsBuffer2 == null){
-            // heightsBuffer = new ComputeBuffer(width*height,sizeof(float));
-            loadData();
-            // heightsBuffer.SetData(bigArr);
-            // cs.SetBuffer(0,heightsId,heightsBuffer);
-            positionsBuffer = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
-            positionsBuffer2 = new ComputeBuffer((xSize+1)*(zSize+1), 3*sizeof(float));
-
+            bufferSetup();
         }
-        int kernelHandle = cs.FindKernel("CSMain");
-        cs.SetFloat("_t",t);
-        positionsBuffer2.SetData(buff2);
-        positionsBuffer.SetData(buff);
-        cs.SetBuffer(0, "_Positions2", positionsBuffer2);
-        cs.SetBuffer(0, "_Positions", positionsBuffer);
         int groups = Mathf.CeilToInt(zSize / 8f);
         cs.SetInt("_Groupsize",groups);
+        int kernelHandle = cs.FindKernel("CSMain");
+        cs.SetFloat("_t",t);
 		cs.Dispatch(kernelHandle, groups * groups, 1, 1);
         Vector3[] data = new Vector3[(xSize+1) * (zSize+1)];
-        // Debug.Log(data[62000]);
         positionsBuffer.GetData(data);
         Debug.Log(data[62000]);
         mesh.vertices = data;
@@ -179,6 +230,84 @@ public class CoarseMeshGen : MonoBehaviour
                 i++;
             }
         }
+
+        // for (int i = 0, z = 0; z<= zSize * step; z+= step) {
+        //     for (int x = 0; x<=xSize * step; x+= step) {
+        //         float y = get_height(x, z);
+        //         buff[i] = new Vector3(x, y, z);
+        //         y = get_height(xSize + x, zSize + z);
+        //         buff2[i] = new Vector3(x, y, z);
+        //         i++;
+        //     }
+        // }
+    }
+
+    [ContextMenu("Load custom mesh data and generate buffers")]
+    void loadMeshAndGenerateBuffers(){
+        int buffSize = (xSize + 1) * (zSize + 1);
+        buff = new Vector3[buffSize];
+        buff2 = new Vector3[buffSize];
+
+        float[] temp = new float[buffSize];
+        float[] temp2 = new float[buffSize];
+
+        try
+        {
+            using (var fileStream = System.IO.File.OpenRead("/Users/odinndagur/Code/Github/binary_writer_py/meshdata/xsize_zsize_251_step_20_offset_12000.dat"))
+            using (var reader = new System.IO.BinaryReader(fileStream))
+            {
+                for(int i = 0; i < width * height; i++){
+                    temp[i] = reader.ReadSingle();
+                }
+            }
+        }
+        catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
+        }
+
+        
+        try
+        {
+            using (var fileStream = System.IO.File.OpenRead("/Users/odinndagur/Code/Github/binary_writer_py/meshdata/xsize_zsize_251_step_20_offset_18000.dat"))
+            using (var reader = new System.IO.BinaryReader(fileStream))
+            {
+                for(int i = 0; i < width * height; i++){
+                    temp2[i] = reader.ReadSingle();
+                }
+            }
+        }
+        catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
+        }
+
+        int step = 20;
+        
+        for (int i = 0, z = 0; z<= zSize * step; z+= step)
+        {
+            for (int x = 0; x<=xSize * step; x+= step)
+            {
+                // float y = get_height(xoff + x, zoff + z);
+                buff[i] = new Vector3(x, temp[i], z);
+                // y = get_height(xoff + xSize + x, zoff + zSize + z);
+                buff2[i] = new Vector3(x, temp2[i], z);
+                i++;
+            }
+        }
+
+
+
+
+
+
+        // for (int i = 0, z = 0; z<= zSize * step; z+= step) {
+        //     for (int x = 0; x<=xSize * step; x+= step) {
+        //         float y = get_height(x, z);
+        //         buff[i] = new Vector3(x, y, z);
+        //         y = get_height(xSize + x, zSize + z);
+        //         buff2[i] = new Vector3(x, y, z);
+        //         i++;
+        //     }
+        // }
     }
     float get_height(int x, int z){
         float height = bigArr[z * width + x];
@@ -198,7 +327,9 @@ public class CoarseMeshGen : MonoBehaviour
         {
             for (int x = 0; x<=xSize; x++)
             {
-                float y = get_height(xoff + x, zoff + z);
+                // float y = get_height(xoff + x, zoff + z);
+                // float y = get_height(x, z);
+                float y = 0.0f;
                 vertices[i] = new Vector3(x, y, z);
                 i++;
             }

@@ -5,11 +5,16 @@ RWStructuredBuffer<float3> _Positions;
 RWStructuredBuffer<float3> _Positions2;
 
 float _t;
+float _Time;
+float speed = 0.1;
+
+// y=amplitude×sin(frequency×time+phase)+bias.
 
 [numthreads(64,1,1)]
 void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
     float3 pos1 = _Positions[id];
     float3 pos2 = _Positions2[id];
+    _t = sin(_Time.y * speed);
     float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
     _Positions[id] = newPos;
 }

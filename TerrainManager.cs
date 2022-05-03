@@ -135,6 +135,7 @@ public class TerrainManager : MonoBehaviour
         catch(System.Exception e)
         {
             // handle errors here.
+            Debug.Log(e);
         }
     }
 }
