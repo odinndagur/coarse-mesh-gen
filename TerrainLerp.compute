@@ -7,6 +7,8 @@ RWStructuredBuffer<float3> _OutputPositions;
 RWStructuredBuffer<float> _fftBuffer;
 
 float _t;
+float _audioLerpFactor;
+float _audioMultiplier;
 
 // y=amplitude×sin(frequency×time+phase)+bias.
 
@@ -24,25 +26,87 @@ void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
     // float zDist = pow(point.y, 2500.0f);
 
     float distFromCenter = distance(float3(pos1.x,0.0f,pos1.z),float3(2500.0f,0.0f,2500.0f));
-    float affected_t = abs(distFromCenter - 2500) / 5000;
-    // _t = sin(_Time.y * speed);
-    // _t = sin(_t * 0.1 + affected_t);
+    float circleRadius = abs(distFromCenter - 2500) / 5000;
 
-    uint bin = (uint)lerp(0,255,affected_t);
-    bin = (uint)(bin + _t) % 255;
-    float audio = log10(_fftBuffer[bin]);
+    // circleRadius -= frac(circleRadius * 10);
+    // _t = sin(_Time.y * speed);
+    // _t = sin(_t * 0.1 + circleRadius);
+
+    // uint bin = (uint)lerp(0,255,circleRadius);
+    // bin = (uint)(bin + _t) % 255;
+    // float audio = log10(_fftBuffer[bin]);
+
+    float f_bin = lerp(0.0f,255.0f,circleRadius);
+    uint lower_bin = (uint)(f_bin - frac(f_bin));
+    uint higher_bin = (lower_bin + 1) % 255;
+
+    float audioLerpFactor = frac(f_bin);
+    audioLerpFactor = 0.5;
+    audioLerpFactor = _audioLerpFactor;
+    float audio = lerp(log10(_fftBuffer[lower_bin]),log10(_fftBuffer[higher_bin]), audioLerpFactor);
+    audio *= _audioMultiplier;
+    audio *= invLerp(0.0, 3000.0, distFromCenter);
+    
 
     float newheight = _t * pos1.y + (1 - _t) * pos2.y;
     float affector = saturate(invLerp(newheight, 200.0f, 900.0f));
     // _t = affector;
 
-    audio *= _t;
-    _t = audio * affector * 40;
+    // audio *= _t;
+    // _t = audio * affector * 40;
+
+    // audio = audio * affector * 10;
+    // newheight += audio;
+
+    // newheight = affector * 10;
+    audio *= 6.0;
+    newheight = newheight + audio * affector;
+
+    float3 newPos = float3(pos1.x,newheight,pos1.z);
+
+    _OutputPositions[id] = newPos;
+}
+
+
+[numthreads(64,1,1)]
+void CSMainBackup (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
+    float3 pos1 = _Positions[id];
+    float3 pos2 = _Positions2[id];
+
+    // float2 point = float2(pos1.x,pos1.z);
+    // float xDist = pow(point.x, 2500.0f);
+    // float zDist = pow(point.y, 2500.0f);
+
+    float distFromCenter = distance(float3(pos1.x,0.0f,pos1.z),float3(2500.0f,0.0f,2500.0f));
+    float affected_t = abs(distFromCenter - 2500) / 5000;
+    // _t = sin(_Time.y * speed);
+    // _t = sin(_t * 0.1 + affected_t);
+
+    // uint bin = (uint)lerp(0,255,affected_t);
+    // bin = (uint)(bin + _t) % 255;
+    // float audio = log10(_fftBuffer[bin]);
+
+    float f_bin = lerp(0.0f,255.0f,affected_t);
+    uint lower_bin = (uint)(f_bin - frac(f_bin));
+    uint higher_bin = (lower_bin + 1) % 255;
+    float audio = lerp(log10(_fftBuffer[lower_bin]),log10(_fftBuffer[higher_bin]), frac(f_bin));
+    
+
+    float newheight = _t * pos1.y + (1 - _t) * pos2.y;
+    float affector = saturate(invLerp(newheight, 200.0f, 900.0f));
+    // _t = affector;
+
+    // audio *= _t;
+    // _t = audio * affector * 40;
+
+    audio = audio * affector * 10;
+    newheight += audio;
+
 
     // _t *= affector;
     // _t = _t * affected_t * (log10(_fftBuffer[bin]));
     // _t = saturate(_t) * 2 - 1;
-    newheight += _t;
+    // newheight += _t;
     // float3 newPos = float3(pos1.x,_t * pos1.y + (1 - _t) * pos2.y,pos1.z);
     float3 newPos = float3(pos1.x,newheight,pos1.z);
     // newPos = _Positions[id];
@@ -50,13 +114,3 @@ void CSMain (uint id : SV_DispatchThreadID, uint gid : SV_GROUPID){
     // _Positions[id] = newPos;
     _OutputPositions[id] = newPos;
 }
-
-
-// fixed2 pixelPoint = fixed2(i.uv.x, i.uv.y);
-// float xDist = pow(pixelPoint.x - _GradientPivot.x, 2);
-// float yDist = pow(pixelPoint.y - _GradientPivot.y, 2);
-// float dist = sqrt(xDist + yDist) / _RadiusMultiplier;
-// dist = clamp(dist, 0, 1);
-// fixed4 col = lerp(_ColorFrom, _ColorTo, dist);
-// col.rgb += getNoise(i.uv);
-// return col;

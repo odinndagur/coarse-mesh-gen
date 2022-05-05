@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshFilter),typeof(MeshRenderer), typeof(MeshCollider))]
@@ -36,6 +37,8 @@ public class CoarseMeshGen : MonoBehaviour
 
     // public enum type {sine,slide};
     public bool sine = false;
+    public float audioLerpFactor = 0.0f;
+    public float audioMultiplier = 1.0f;
 
     // public Shader shader;
     // Material material;
@@ -132,6 +135,9 @@ public class CoarseMeshGen : MonoBehaviour
         fftBuffer.SetData(audioPlayer.spectrum);
         cs.SetBuffer(0, "_fftBuffer", fftBuffer);
 
+        cs.SetFloat("_audioLerpFactor",audioLerpFactor);
+        cs.SetFloat("_audioMultiplier",audioMultiplier);
+
         int groups = Mathf.CeilToInt(zSize / 8f);
         cs.SetInt("_Groupsize",groups);
         int kernelHandle = cs.FindKernel("CSMain");
@@ -143,6 +149,26 @@ public class CoarseMeshGen : MonoBehaviour
         mesh.vertices = data;
         mesh.RecalculateNormals ();
     }
+
+    float[] loadTerrainArray(string filepath, int arraySize){
+        float[] temp = new float[arraySize];
+        string fpath = Path.Combine(Application.streamingAssetsPath, filepath);
+        try
+        {
+            using (var fileStream = System.IO.File.OpenRead(fpath))
+            using (var reader = new System.IO.BinaryReader(fileStream))
+            {
+                for(int i = 0; i < arraySize; i++){
+                    temp[i] = reader.ReadSingle();
+                }
+                return temp;
+            }
+        }
+        catch(System.Exception e){ // handle errors here.
+            Debug.Log(e);
+        }
+        return new float[1];
+    }
     
     [ContextMenu("Load custom mesh data and generate buffers")]
     void loadMeshAndGenerateBufferArrays(){
@@ -150,37 +176,8 @@ public class CoarseMeshGen : MonoBehaviour
         buff = new Vector3[buffSize];
         buff2 = new Vector3[buffSize];
 
-        float[] temp = new float[buffSize];
-        float[] temp2 = new float[buffSize];
-
-        try
-        {
-            using (var fileStream = System.IO.File.OpenRead("/Users/odinndagur/Code/Github/binary_writer_py/meshdata/xsize_zsize_251_step_20_offset_12000.dat"))
-            using (var reader = new System.IO.BinaryReader(fileStream))
-            {
-                for(int i = 0; i < width * height; i++){
-                    temp[i] = reader.ReadSingle();
-                }
-            }
-        }
-        catch(System.Exception e){ // handle errors here.
-            Debug.Log(e);
-        }
-
-        
-        try
-        {
-            using (var fileStream = System.IO.File.OpenRead("/Users/odinndagur/Code/Github/binary_writer_py/meshdata/xsize_zsize_251_step_20_offset_18000.dat"))
-            using (var reader = new System.IO.BinaryReader(fileStream))
-            {
-                for(int i = 0; i < width * height; i++){
-                    temp2[i] = reader.ReadSingle();
-                }
-            }
-        }
-        catch(System.Exception e){ // handle errors here.
-            Debug.Log(e);
-        }
+        float[] temp = loadTerrainArray("xsize_zsize_251_step_20_offset_12000.dat",buffSize);
+        float[] temp2 = loadTerrainArray("xsize_zsize_251_step_20_offset_18000.dat",buffSize);
 
         int step = 20;
         
